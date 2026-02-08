@@ -1,35 +1,37 @@
 FROM python:3.11-slim
 
-# Environment variables for memory optimization (Render free tier: 512MB RAM)
+# Environment variables for memory optimization
 ENV FLAGS_fraction_of_cpu_memory_to_use=0.3 \
     OMP_NUM_THREADS=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with retry and minimal packages
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
     libgomp1 \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     libgl1-mesa-glx \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Download Italian OCR models at build time (not at runtime)
-# This speeds up container startup
-RUN python -c "from paddleocr import PaddleOCR; ocr = PaddleOCR(lang='it', use_angle_cls=False, show_log=False)"
+# Download OCR models at build time
+RUN python -c "from paddleocr import PaddleOCR; ocr = PaddleOCR(lang='it', use_angle_cls=False, show_log=False)" || true
 
-# Copy application code
+# Copy application
 COPY app.py .
 
 # Expose port
 EXPOSE 8000
 
-# Run the application with single worker (memory optimization)
+# Run application
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
