@@ -9,15 +9,15 @@ WORKDIR /app
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python packages only
+# Install Python packages
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Download models (with fallback)
-RUN python -c "try:\n    from paddleocr import PaddleOCR\n    ocr = PaddleOCR(lang='it', use_angle_cls=False, show_log=False)\nexcept: pass"
-
 # Copy app
 COPY app.py .
+
+# Download models at first run (not at build time)
+# This makes the build faster and more reliable
 
 EXPOSE 8000
 
